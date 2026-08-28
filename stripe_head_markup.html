@@ -1,0 +1,316 @@
+<!--
+    STRIPE LWR COMMUNITY HEAD MARKUP SCRIPT (SHADOW DOM COMPATIBLE)
+    ================================================================
+    Installation in Salesforce Experience Builder:
+    1. Open Experience Builder for your Community Site (e.g. "Invoice Payment Portal").
+    2. Go to Settings (⚙️ icon on the left) -> Advanced -> Edit Head Markup.
+    3. Replace/Paste the entire script below into the Head Markup box.
+    4. Click Save, then click "Publish" (top right of Experience Builder).
+-->
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function() {
+    'use strict';
+    
+    // Store instances per bridgeId
+    var bridges = {};
+
+    function getOrCreateBridge(bridgeId, publishableKey) {
+        if (!bridges[bridgeId]) {
+            bridges[bridgeId] = {
+                stripe: null,
+                elements: null,
+                paymentElement: null,
+                publishableKey: publishableKey
+            };
+        }
+        if (publishableKey && (!bridges[bridgeId].stripe || bridges[bridgeId].publishableKey !== publishableKey)) {
+            if (typeof window.Stripe !== 'function') {
+                throw new Error('Stripe.js is not loaded. Please ensure https://js.stripe.com/v3/ is allowed in CSP.');
+            }
+            bridges[bridgeId].stripe = window.Stripe(publishableKey);
+            bridges[bridgeId].publishableKey = publishableKey;
+        }
+        return bridges[bridgeId];
+    }
+
+    function dispatchResponse(detail) {
+        window.dispatchEvent(new CustomEvent('stripe-lwr-response', {
+            detail: detail
+        }));
+    }
+
+    // Recursively penetrates all Shadow DOM roots (LWC Locker / Web Components)
+    function querySelectorDeep(selector, root) {
+        root = root || document;
+        try {
+            var el = root.querySelector(selector);
+            if (el) return el;
+        } catch (e) {}
+
+        var all = root.querySelectorAll('*');
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i];
+            if (node.shadowRoot) {
+                var found = querySelectorDeep(selector, node.shadowRoot);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    function findMountContainer(mountAttribute, retries, interval, callback) {
+        var selector = '[data-stripe-bridge="' + mountAttribute + '"]';
+        var el = querySelectorDeep(selector, document);
+        if (!el) {
+            // Fallback search by class name across all shadow roots
+            el = querySelectorDeep('.stripe-payment-element', document);
+        }
+        if (el) {
+            callback(null, el);
+            return;
+        }
+        if (retries <= 0) {
+            callback(new Error('Mount container ' + selector + ' not found in DOM after waiting.'));
+            return;
+        }
+        setTimeout(function() {
+            findMountContainer(mountAttribute, retries - 1, interval, callback);
+        }, interval);
+    }
+
+    window.addEventListener('stripe-lwr-command', async function(e) {
+        var detail = e.detail || {};
+        var bridgeId = detail.bridgeId;
+        var requestId = detail.requestId;
+        var action = detail.action;
+
+        if (!bridgeId) return;
+
+        try {
+            if (action === 'mount') {
+                var publishableKey = detail.publishableKey;
+                var clientSecret = detail.clientSecret;
+                var amount = detail.amount;
+                var currency = detail.currency || 'usd';
+                var mountAttribute = detail.mountAttribute || bridgeId;
+                var setupFutureUsage = detail.setupFutureUsage !== undefined ? detail.setupFutureUsage : 'off_session';
+
+                var bridge = getOrCreateBridge(bridgeId, publishableKey);
+                
+                // Clean up previous elements if any
+                if (bridge.paymentElement) {
+                    try { bridge.paymentElement.destroy(); } catch(err) {}
+                    bridge.paymentElement = null;
+                }
+
+                var elementsOptions = {
+                    appearance: {
+                        theme: 'stripe',
+                        variables: {
+                            colorPrimary: '#ef4444',
+                            colorBackground: '#ffffff',
+                            colorText: '#1e293b',
+                            borderRadius: '8px',
+                            fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+                        }
+                    }
+                };
+
+                if (clientSecret) {
+                    elementsOptions.clientSecret = clientSecret;
+                } else {
+                    elementsOptions.mode = 'payment';
+                    elementsOptions.amount = Math.max(50, parseInt(amount || 100, 10));
+                    elementsOptions.currency = (currency || 'usd').toLowerCase();
+                    if (setupFutureUsage) {
+                        elementsOptions.setupFutureUsage = setupFutureUsage;
+                    }
+                }
+
+                bridge.elements = bridge.stripe.elements(elementsOptions);
+
+                var paymentOptions = {};
+                var defaultBilling = {};
+                if (detail.customerName) defaultBilling.name = detail.customerName;
+                if (detail.customerEmail) defaultBilling.email = detail.customerEmail;
+                if (detail.customerPhone) defaultBilling.phone = detail.customerPhone;
+                if (detail.customerAddress) {
+                    defaultBilling.address = {};
+                    if (detail.customerAddress.line1) defaultBilling.address.line1 = detail.customerAddress.line1;
+                    if (detail.customerAddress.line2) defaultBilling.address.line2 = detail.customerAddress.line2;
+                    if (detail.customerAddress.city) defaultBilling.address.city = detail.customerAddress.city;
+                    if (detail.customerAddress.state) defaultBilling.address.state = detail.customerAddress.state;
+                    if (detail.customerAddress.postal_code) defaultBilling.address.postal_code = detail.customerAddress.postal_code;
+                    if (detail.customerAddress.country) defaultBilling.address.country = detail.customerAddress.country;
+                }
+                if (Object.keys(defaultBilling).length > 0) {
+                    paymentOptions.defaultValues = {
+                        billingDetails: defaultBilling
+                    };
+                }
+
+                bridge.paymentElement = bridge.elements.create('payment', paymentOptions);
+
+                findMountContainer(mountAttribute, 40, 150, function(err, container) {
+                    if (err) {
+                        dispatchResponse({
+                            bridgeId: bridgeId,
+                            requestId: requestId,
+                            ok: false,
+                            errorMessage: err.message
+                        });
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    bridge.paymentElement.mount(container);
+
+                    bridge.paymentElement.on('ready', function() {
+                        dispatchResponse({
+                            bridgeId: bridgeId,
+                            eventType: 'ready',
+                            ok: true,
+                            requestId: requestId
+                        });
+                    });
+
+                    bridge.paymentElement.on('change', function(event) {
+                        dispatchResponse({
+                            bridgeId: bridgeId,
+                            eventType: 'change',
+                            complete: event.complete,
+                            errorMessage: event.error ? event.error.message : ''
+                        });
+                    });
+
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: true
+                    });
+                });
+
+            } else if (action === 'submit') {
+                var bridge = bridges[bridgeId];
+                if (!bridge || !bridge.elements) {
+                    throw new Error('Stripe Payment Element is not initialized.');
+                }
+                var submitResult = await bridge.elements.submit();
+                if (submitResult && submitResult.error) {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: false,
+                        errorMessage: submitResult.error.message
+                    });
+                } else {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: true
+                    });
+                }
+
+            } else if (action === 'confirm') {
+                var bridge = bridges[bridgeId];
+                if (!bridge || !bridge.stripe || !bridge.elements) {
+                    throw new Error('Stripe Payment Element is not initialized for this session.');
+                }
+
+                var clientSecret = detail.clientSecret;
+                var confirmParams = {
+                    return_url: detail.returnUrl || window.location.href
+                };
+                var confirmBilling = {};
+                if (detail.customerName) confirmBilling.name = detail.customerName;
+                if (detail.customerEmail) confirmBilling.email = detail.customerEmail;
+                if (detail.customerPhone) confirmBilling.phone = detail.customerPhone;
+                if (detail.customerAddress) {
+                    confirmBilling.address = {};
+                    if (detail.customerAddress.line1) confirmBilling.address.line1 = detail.customerAddress.line1;
+                    if (detail.customerAddress.line2) confirmBilling.address.line2 = detail.customerAddress.line2;
+                    if (detail.customerAddress.city) confirmBilling.address.city = detail.customerAddress.city;
+                    if (detail.customerAddress.state) confirmBilling.address.state = detail.customerAddress.state;
+                    if (detail.customerAddress.postal_code) confirmBilling.address.postal_code = detail.customerAddress.postal_code;
+                    if (detail.customerAddress.country) confirmBilling.address.country = detail.customerAddress.country;
+                }
+                if (Object.keys(confirmBilling).length > 0) {
+                    confirmParams.payment_method_data = {
+                        billing_details: confirmBilling
+                    };
+                }
+
+                var confirmOptions = {
+                    elements: bridge.elements,
+                    confirmParams: confirmParams,
+                    redirect: 'if_required'
+                };
+                if (clientSecret) {
+                    confirmOptions.clientSecret = clientSecret;
+                }
+
+                var confirmResult = await bridge.stripe.confirmPayment(confirmOptions);
+
+                if (confirmResult.error) {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: false,
+                        errorMessage: confirmResult.error.message
+                    });
+                } else {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: true,
+                        paymentIntent: confirmResult.paymentIntent
+                    });
+                }
+
+            } else if (action === 'retrieve') {
+                var publishableKey = detail.publishableKey;
+                var clientSecret = detail.clientSecret;
+                var bridge = getOrCreateBridge(bridgeId, publishableKey);
+
+                var retrieveResult = await bridge.stripe.retrievePaymentIntent(clientSecret);
+                if (retrieveResult.error) {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: false,
+                        errorMessage: retrieveResult.error.message
+                    });
+                } else {
+                    dispatchResponse({
+                        bridgeId: bridgeId,
+                        requestId: requestId,
+                        ok: true,
+                        paymentIntent: retrieveResult.paymentIntent
+                    });
+                }
+
+            } else if (action === 'destroy') {
+                var bridge = bridges[bridgeId];
+                if (bridge && bridge.paymentElement) {
+                    try { bridge.paymentElement.destroy(); } catch(err) {}
+                    bridge.paymentElement = null;
+                }
+                dispatchResponse({
+                    bridgeId: bridgeId,
+                    requestId: requestId,
+                    ok: true
+                });
+            }
+        } catch (err) {
+            console.error('[Stripe LWR Bridge Error]', err);
+            dispatchResponse({
+                bridgeId: bridgeId,
+                requestId: requestId,
+                ok: false,
+                errorMessage: err.message || 'Unexpected Stripe bridge error'
+            });
+        }
+    });
+})();
+</script>
