@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle
+	xmlns="http://soap.sforce.com/2006/04/metadata">
+	<apiVersion>66.0</apiVersion>
+	<isExposed>true</isExposed>
+	<masterLabel>Stripe Payment</masterLabel>
+	<description>
+        Stripe payment component for Salesforce.
+    </description>
+	<targets>
+		<target>lightning__AppPage</target>
+		<target>lightning__HomePage</target>
+		<target>lightning__RecordPage</target>
+	</targets>
+	<targetConfigs>
+		<targetConfig targets="lightning__AppPage,lightning__HomePage,lightning__RecordPage">
+			<property
+                name="invoiceNumber"
+                type="String"
+                label="Invoice Number"
+                description="Invoice number to be paid"
+                required="true" />
+			<property
+                name="amount"
+                type="String"
+                label="Payment Amount"
+                description="Payment amount"
+                required="true" />
+			<property
+                name="currency"
+                type="String"
+                label="Currency"
+                description="ISO currency code, e.g. USD"
+                default="USD"
+                required="true" />
+			<property
+                name="customerName"
+                type="String"
+                label="Customer Name" />
+			<property
+                name="customerEmail"
+                type="String"
+                label="Customer Email"
+                required="true" />
+			<property
+                name="description"
+                type="String"
+                label="Payment Description" />
+		</targetConfig>
+	</targetConfigs>
+</LightningComponentBundle>

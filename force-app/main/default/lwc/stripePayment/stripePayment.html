@@ -1,0 +1,112 @@
+<template>
+  <lightning-card title="Pay Invoice" icon-name="utility:money">
+    <div class="payment-container">
+      <!-- Invoice Summary -->
+      <div class="invoice-summary">
+        <div class="summary-header">
+          <div>
+            <div class="section-title"> Invoice Payment </div>
+            <div class="invoice-number"> {invoiceNumber} </div>
+          </div>
+          <div class="status-badge"> {paymentStatus} </div>
+        </div>
+        <template if:true={parsedInvoices}>
+          <template if:true={parsedInvoices.length}>
+            <div class="invoice-list">
+              <table class="simple-invoice-table">
+                <thead>
+                  <tr>
+                    <th>Document #</th>
+                    <th>Date</th>
+                    <th>Open</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={parsedInvoices} for:item="inv">
+                    <tr key={inv.key}>
+                      <td>{inv.billingDocumentNumber}</td>
+                      <td>{inv.documentDate}</td>
+                      <td>{inv.currencySymbol}{inv.openAmount}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </template>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="label"> Customer </span>
+            <span class="value"> {customerName} </span>
+          </div>
+          <div class="summary-item">
+            <span class="label"> Email </span>
+            <span class="value"> {customerEmail} </span>
+          </div>
+          <div class="summary-item">
+            <span class="label"> Amount </span>
+            <span class="amount"> {formattedAmount} </span>
+          </div>
+          <div class="summary-item">
+            <span class="label"> Currency </span>
+            <span class="value currency"> {currency} </span>
+          </div>
+        </div>
+      </div>
+      <!-- Error -->
+      <template if:true={errorMessage}>
+        <div class="error-message">
+          <lightning-icon icon-name="utility:error" size="x-small"></lightning-icon>
+          <span> {errorMessage} </span>
+        </div>
+      </template>
+      <!-- Success -->
+      <template if:true={successMessage}>
+        <div class="success-message">
+          <lightning-icon icon-name="utility:success" size="x-small"></lightning-icon>
+          <span> {successMessage} </span>
+        </div>
+      </template>
+      <!-- Loading -->
+      <template if:true={isLoading}>
+        <div class="loading-container">
+          <lightning-spinner alternative-text="Loading payment..." size="medium"></lightning-spinner>
+        </div>
+      </template>
+      <!-- Stripe Payment Element -->
+      <template if:true={showPaymentForm}>
+        <div class="payment-section">
+          <div class="section-title"> Payment Details </div>
+          <div class="secure-text">
+            <lightning-icon icon-name="utility:lock" size="xx-small"></lightning-icon>
+            <span> Secure payment powered by Stripe </span>
+          </div>
+          <div class="stripe-element" lwc:dom="manual"></div>
+          <button class="pay-button" onclick={handlePay} disabled={isProcessing} aria-label="Pay invoice">
+            <template if:false={isProcessing}>
+              <span> Pay {formattedAmount} </span>
+            </template>
+            <template if:true={isProcessing}>
+              <span> Processing... </span>
+            </template>
+          </button>
+          <div class="payment-note"> Your card information is securely processed by Stripe. Salesforce does not store your card details. </div>
+        </div>
+      </template>
+      <!-- Payment Complete -->
+      <template if:true={paymentCompleted}>
+        <div class="payment-complete">
+          <div class="success-icon">
+            <lightning-icon icon-name="utility:success" size="large"></lightning-icon>
+          </div>
+          <h2> Payment Successful </h2>
+          <p> Your payment has been submitted successfully. </p>
+          <div class="payment-reference">
+            <span> Payment Reference </span>
+            <strong> {paymentIntentId} </strong>
+          </div>
+        </div>
+      </template>
+    </div>
+  </lightning-card>
+</template>

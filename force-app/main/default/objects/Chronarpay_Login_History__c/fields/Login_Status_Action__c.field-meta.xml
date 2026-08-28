@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Login_Status_Action__c</fullName>
+    <label>Login Status Action</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Login Success</fullName>
+                <default>false</default>
+                <label>Login Success</label>
+            </value>
+            <value>
+                <fullName>Login Failed</fullName>
+                <default>false</default>
+                <label>Login Failed</label>
+            </value>
+            <value>
+                <fullName>Password Changed</fullName>
+                <default>false</default>
+                <label>Password Changed</label>
+            </value>
+            <value>
+                <fullName>Reset Password</fullName>
+                <default>false</default>
+                <label>Reset Password</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

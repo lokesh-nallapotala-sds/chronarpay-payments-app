@@ -1,0 +1,240 @@
+<template>
+    <div class="dashboard-container">
+        <!-- Header Section -->
+        <header class="dashboard-header">
+            <div class="header-title-wrapper">
+                <div class="header-icon">
+                    <lightning-icon icon-name="utility:moneybag" size="medium" variant="inverse"></lightning-icon>
+                </div>
+                <div>
+                    <h1 class="header-title">Salesforce Payments Hub</h1>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">Simulate and manage billing invoice payments seamlessly</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <!-- Account Selector -->
+                <lightning-combobox
+                    name="accountSelect"
+                    label="Select Billing Account"
+                    value={selectedAccountId}
+                    placeholder="Choose an account..."
+                    options={accountOptions}
+                    onchange={handleAccountChange}
+                    class="account-selector"
+                    variant="label-hidden">
+                </lightning-combobox>
+
+                <button class="filter-btn" onclick={handleRefresh} title="Refresh Data">
+                    <lightning-icon icon-name="utility:refresh" size="x-small" style="margin-right: 4px;"></lightning-icon>
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Spinner overlay during main loading -->
+        <template if:true={isLoading}>
+            <div style="position: relative; height: 150px;">
+                <lightning-spinner alternative-text="Loading Invoice Dashboard..." size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <!-- Dashboard KPI Cards -->
+            <section class="kpi-grid">
+                <div class="kpi-card balance">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Net Balance</span>
+                        <div class="kpi-icon-wrapper">
+                            <lightning-icon icon-name="utility:currency" size="small"></lightning-icon>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        <lightning-formatted-number value={dashboardStats.balance} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                    </div>
+                </div>
+
+                <div class="kpi-card due">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Total Amount Due</span>
+                        <div class="kpi-icon-wrapper">
+                            <lightning-icon icon-name="utility:open_folder" size="small"></lightning-icon>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        <lightning-formatted-number value={dashboardStats.totalAmountDue} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                    </div>
+                </div>
+
+                <div class="kpi-card past-due">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Total Past Due</span>
+                        <div class="kpi-icon-wrapper">
+                            <lightning-icon icon-name="utility:warning" size="small"></lightning-icon>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        <lightning-formatted-number value={dashboardStats.totalPastDue} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                    </div>
+                </div>
+
+                <div class="kpi-card credits">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Total Credits Applied</span>
+                        <div class="kpi-icon-wrapper">
+                            <lightning-icon icon-name="utility:check" size="small"></lightning-icon>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        <lightning-formatted-number value={dashboardStats.totalCredits} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Table Filters and Header Control Panel -->
+            <div class="control-panel">
+                <h2 class="panel-title">Invoices List ({invoicesCount})</h2>
+                
+                <div class="filter-group">
+                    <button class={filterBtnAllClass} onclick={handleFilterClick} data-filter="All">All</button>
+                    <button class={filterBtnOpenClass} onclick={handleFilterClick} data-filter="Open">Open</button>
+                    <button class={filterBtnPastDueClass} onclick={handleFilterClick} data-filter="Past Due">Past Due</button>
+                    <button class={filterBtnPaidClass} onclick={handleFilterClick} data-filter="Paid">Paid</button>
+                </div>
+            </div>
+
+            <!-- Invoices Table -->
+            <div class="table-card">
+                <template if:true={hasInvoices}>
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Invoice Number</th>
+                                <th>Invoice Date</th>
+                                <th>Due Date</th>
+                                <th>Total Amount</th>
+                                <th>Balance Due</th>
+                                <th>Status</th>
+                                <th style="text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={invoices} for:item="invoice">
+                                <tr key={invoice.Id}>
+                                    <td>
+                                        <span class="invoice-number-link">{invoice.InvoiceNumber}</span>
+                                    </td>
+                                    <td>
+                                        <lightning-formatted-date-time value={invoice.InvoiceDate} year="numeric" month="short" day="2-digit"></lightning-formatted-date-time>
+                                    </td>
+                                    <td>
+                                        <lightning-formatted-date-time value={invoice.DueDate} year="numeric" month="short" day="2-digit"></lightning-formatted-date-time>
+                                    </td>
+                                    <td class="currency-format">
+                                        <lightning-formatted-number value={invoice.TotalAmount} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                    </td>
+                                    <td class="currency-format">
+                                        <lightning-formatted-number value={invoice.Balance} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                    </td>
+                                    <td>
+                                        <span class={invoice.statusClass}>{invoice.Status}</span>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <button 
+                                            class="pay-button" 
+                                            onclick={openPaymentModal} 
+                                            data-id={invoice.Id} 
+                                            data-number={invoice.InvoiceNumber}
+                                            data-balance={invoice.Balance}
+                                            disabled={invoice.isPaid}>
+                                            <lightning-icon icon-name="utility:salesforce1" size="xx-small" variant="inverse" style="margin-top: -2px;"></lightning-icon>
+                                            Pay Now
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+
+                <template if:false={hasInvoices}>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <lightning-icon icon-name="utility:open_folder" size="medium"></lightning-icon>
+                        </div>
+                        <p style="font-weight: 600;">No invoices found matching current criteria.</p>
+                        <p style="font-size: 13px; color: var(--text-light); margin-top: 4px;">Choose another account or update your status filter.</p>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Payment Checkout Modal (Salesforce Payments Experience) -->
+        <template if:true={isModalOpen}>
+            <div class="modal-overlay">
+                <div class="modal-container">
+                    <header class="modal-header">
+                        <h2 class="modal-title">Salesforce Checkout</h2>
+                        <button class="modal-close-btn" onclick={closeModal}>&times;</button>
+                    </header>
+                    
+                    <div class="modal-body">
+                        <!-- Invoice Mini Details Box -->
+                        <div class="invoice-summary-box">
+                            <div class="summary-row">
+                                <span class="summary-label">Invoice Number</span>
+                                <span class="summary-value">#{selectedInvoiceNumber}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">Outstanding Balance</span>
+                                <span class="summary-value" style="color: #4f46e5;">
+                                    <lightning-formatted-number value={selectedInvoiceBalance} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Credit Card Form -->
+                        <form class="payment-form" onsubmit={handlePaymentSubmit}>
+                            <div style="position: relative;">
+                                <label class="form-label" for="cardholder">Cardholder Name</label>
+                                <input type="text" id="cardholder" class="form-input" required placeholder="Jane Doe" value={cardholderName} oninput={handleCardholderInput}/>
+                            </div>
+                            
+                            <div>
+                                <label class="form-label" for="cardnumber">Credit Card Number</label>
+                                <input type="text" id="cardnumber" class="form-input" required maxlength="19" placeholder="4111 2222 3333 4444" value={cardNumber} oninput={handleCardNumberInput}/>
+                            </div>
+
+                            <div class="form-row-2">
+                                <div>
+                                    <label class="form-label" for="expiry">Expiry Date</label>
+                                    <input type="text" id="expiry" class="form-input" required maxlength="5" placeholder="MM/YY" value={expiryDate} oninput={handleExpiryInput}/>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="cvv">CVV</label>
+                                    <input type="text" id="cvv" class="form-input" required maxlength="4" placeholder="123" value={cvv} oninput={handleCVVInput}/>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="amount">Payment Amount (USD)</label>
+                                <input type="number" id="amount" step="0.01" max={selectedInvoiceBalance} min="0.01" class="form-input" required value={paymentAmount} oninput={handleAmountInput}/>
+                            </div>
+
+                            <button type="submit" class="submit-button" disabled={isProcessing}>
+                                <template if:true={isProcessing}>
+                                    <lightning-spinner alternative-text="Processing..." size="small" variant="inverse" style="position: relative; display: inline-block; width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;"></lightning-spinner>
+                                    Processing Payment...
+                                </template>
+                                <template if:false={isProcessing}>
+                                    <lightning-icon icon-name="utility:lock" size="x-small" variant="inverse"></lightning-icon>
+                                    Submit Salesforce Payment
+                                </template>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

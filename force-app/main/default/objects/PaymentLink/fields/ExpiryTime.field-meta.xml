@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExpiryTime</fullName>
+    <inlineHelpText>Set an expiration date and time based on the running user&apos;s time zone not your org&apos;s time zone</inlineHelpText>
+</CustomField>

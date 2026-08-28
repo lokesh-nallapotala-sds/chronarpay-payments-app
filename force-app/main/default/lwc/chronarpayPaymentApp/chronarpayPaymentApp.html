@@ -1,0 +1,1164 @@
+<template>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <span class="logo-text">
+          <lightning-icon
+            icon-name="utility:moneybag"
+            size="small"
+            variant="inverse"
+            class="logo-icon"
+          ></lightning-icon>
+          ChronarPay
+        </span>
+      </div>
+
+      <nav class="menu-section">
+        <p class="menu-label">Main Menu</p>
+        <div class={dashboardMenuItemClass} onclick={navigateToDashboard}>
+          <lightning-icon
+            icon-name="utility:home"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          Home
+        </div>
+        <div class={historyMenuItemClass} onclick={navigateToTransactions}>
+          <lightning-icon
+            icon-name="utility:list"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          History
+        </div>
+        <div class={customersMenuItemClass} onclick={navigateToCustomers}>
+          <lightning-icon
+            icon-name="utility:card_details"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          Payment Methods
+        </div>
+        <!-- <div class="menu-item">
+          <lightning-icon
+            icon-name="utility:date_time"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          Scheduled Payments
+        </div>
+        <div class="menu-item">
+          <lightning-icon
+            icon-name="utility:download"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          Deposits
+        </div> -->
+      </nav>
+
+      <nav class="menu-section">
+        <p class="menu-label">Admin</p>
+        <div class="menu-item">
+          <lightning-icon
+            icon-name="utility:user"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          User Management
+        </div>
+        <!-- <div class="menu-item">
+          <lightning-icon
+            icon-name="utility:settings"
+            size="xx-small"
+            class="menu-item-icon"
+          ></lightning-icon>
+          Configuration
+        </div> -->
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="#" class="footer-link">Privacy Policy</a>
+        <a href="#" class="footer-link">Terms and Conditions</a>
+        <a href="#" class="footer-link">Contact Us</a>
+        <div class="version-text">v3.2.6</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top bar -->
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <template if:false={isStepPayment}>
+            <!-- Account Selector -->
+            <select
+              class="filter-select"
+              style="width: 100%; font-weight: 700"
+              onchange={handleAccountChange}
+            >
+              <template for:each={accountOptions} for:item="opt">
+                <option
+                  key={opt.value}
+                  value={opt.value}
+                  selected={opt.selected}
+                >
+                  {opt.label}
+                </option>
+              </template>
+            </select>
+          </template>
+        </div>
+
+        <div class="user-profile">
+          <div class="avatar" title="User Profile">C</div>
+        </div>
+      </header>
+
+      <!-- Page view container -->
+      <div class="view-container">
+        <!-- Loading Spinner Overlay -->
+        <template if:true={isProcessing}>
+          <div class="spinner-overlay">
+            <lightning-spinner
+              alternative-text="Loading..."
+              size="large"
+            ></lightning-spinner>
+          </div>
+        </template>
+
+        <!-- ========================================= -->
+        <!-- STEP 1: DASHBOARD VIEW                    -->
+        <!-- ========================================= -->
+        <template if:true={isStepDashboard}>
+          <div class="content-header">
+            <div>
+              <h1 class="page-title">Home</h1>
+              <p class="page-subtitle">View and Pay Invoices</p>
+            </div>
+            <div class="header-pay-summary">
+              <!-- <button class="new-btn-main" onclick={handleNewInvoiceClick} style="margin-right: 8px;">+ New Invoice</button> -->
+              <span class="selected-amount-label">
+                Selected
+                <span class="selected-amount-val"
+                  >{currencySymbol}{formattedSelectedAmount}</span
+                >
+              </span>
+              <button
+                class="pay-btn-main"
+                disabled={isPayDisabled}
+                onclick={goToPaymentStep}
+              >
+                Pay
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI Statistics Grid -->
+          <section class="kpi-cards-grid">
+            <div class="kpi-card">
+              <div class="kpi-title">Total Amount Due</div>
+              <div class="kpi-value">{currencySymbol}{formattedTotalDue}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Total Credits</div>
+              <div class="kpi-value">
+                -{currencySymbol}{formattedTotalCredits}
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Balance</div>
+              <div class="kpi-value">{currencySymbol}{formattedBalance}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Total Past Due</div>
+              <div class="kpi-value">{currencySymbol}{formattedPastDue}</div>
+            </div>
+          </section>
+
+          <!-- Table Filters Row -->
+          <section class="filter-bar">
+            <div class="filter-item">
+              <span class="filter-label">Account</span>
+              <select class="filter-select" onchange={handleSoldToAccountChange}>
+                <template for:each={soldToAccountOptions} for:item="opt">
+                  <option
+                    key={opt.value}
+                    value={opt.value}
+                    selected={opt.selected}
+                  >
+                    {opt.label}
+                  </option>
+                </template>
+              </select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">Currency</span>
+              <select class="filter-select" disabled>
+                <option value={accountCurrency}>{accountCurrency}</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">Status</span>
+              <select class="filter-select" onchange={handleStatusFilterChange}>
+                <option value="Open">Show All Open</option>
+                <option value="Paid">Show All Paid</option>
+                <option value="All">Show All</option>
+              </select>
+            </div>
+            <div class="export-btn-container">
+              <button class="export-btn">Export &nbsp;▼</button>
+            </div>
+          </section>
+
+          <!-- Invoices Grid Table -->
+          <section class="customer-panel customer-table-panel">
+            <table class="invoice-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center">
+                    <input
+                      type="checkbox"
+                      onchange={handleSelectAll}
+                      checked={isAllSelected}
+                    />
+                  </th>
+                  <th>Status</th>
+                  <th>Reference #</th>
+                  <th>Document #</th>
+                  <th>Date</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Open</th>
+                  <th>Due</th>
+                  <th>Account</th>
+                  <th style="text-align: center">PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template for:each={paginatedInvoices} for:item="inv">
+                  <tr key={inv.key}>
+                    <td style="text-align: center">
+                      <input
+                        type="checkbox"
+                        checked={inv.selected}
+                        data-id={inv.key}
+                        onchange={handleRowSelect}
+                      />
+                    </td>
+                    <td>
+                      <span class={inv.statusBadgeClass}>{inv.status}</span>
+                    </td>
+                    <td>{inv.referenceNumber}</td>
+                    <td>
+                      <a
+                        href="#"
+                        class="doc-link"
+                        data-id={inv.key}
+                        onclick={handleDocClick}
+                        >{inv.billingDocumentNumber}</a
+                      >
+                    </td>
+                    <td>{inv.documentDate}</td>
+                    <td>{inv.currencySymbol}{inv.formattedTotal}</td>
+                    <td>{inv.currencySymbol}{inv.formattedPaid}</td>
+                    <td>{inv.currencySymbol}{inv.formattedOpen}</td>
+                    <td class={inv.dueCellClass}>{inv.dueDate}</td>
+                    <td>{inv.accountNumber}</td>
+                    <td style="text-align: center">
+                      <button class="pdf-icon-btn" title="Download PDF">
+                        📄
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+                <template if:false={hasInvoices}>
+                  <tr>
+                    <td
+                      colspan="11"
+                      style="text-align: center; padding: 32px; color: #64748b"
+                    >
+                      No invoices found matching current criteria.
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Pagination -->
+          <section class="pagination-bar">
+            <div class="pagination-left">
+              <button class="page-btn" onclick={handlePrevPage}>&lt;</button>
+              <template for:each={pagesList} for:item="page">
+                <button
+                  key={page.number}
+                  class={page.class}
+                  data-page={page.number}
+                  onclick={handlePageClick}
+                >
+                  {page.number}
+                </button>
+              </template>
+              <button class="page-btn" onclick={handleNextPage}>&gt;</button>
+            </div>
+            <div class="pagination-right">
+              <span style="font-size: 13px; color: #64748b">Show</span>
+              <select
+                class="filter-select"
+                style="min-width: 80px; padding: 6px 8px"
+                onchange={handlePageSizeChange}
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </section>
+        </template>
+
+        <!-- Transactions View -->
+        <template if:true={isStepTransactions}>
+          <div class="content-header">
+            <div>
+              <h1 class="page-title">Payment History</h1>
+              <template if:true={selectedAccountLabel}>
+                <p class="page-subtitle" style="margin-top: 4px; font-size: 13px; color: #64748b;">
+                  Showing Stripe transactions for <strong style="color: #0f172a">{selectedAccountLabel}</strong>
+                </p>
+              </template>
+            </div>
+            <div>
+              <button class="export-btn" onclick={loadStripeTransactions}>
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <section class="customer-panel customer-table-panel">
+            <template if:true={hasStripeTransactions}>
+              <table class="invoice-table">
+                <thead>
+                  <tr>
+                    <!-- <th style="width: 40px; text-align: center">
+                      <input
+                        type="checkbox"
+                        onchange={handleTransactionSelectAll}
+                        checked={isAllTransactionsSelected}
+                      />
+                    </th> -->
+                    <!-- <th>Transaction ID</th> -->
+                    <!-- <th>Customer</th> -->
+                    <th>Description</th>
+                    <th style="text-align: right">Amount</th>
+                    <th>Transaction Date</th>
+                    <th>Payment method</th>
+                    <th>Status</th>
+                    <th>Refunded date</th>
+                    <th>Decline reason</th>
+                    <th style="text-align: center">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template
+                    for:each={paginatedStripeTransactions}
+                    for:item="tx"
+                  >
+                    <tr key={tx.id}>
+                      <!-- <td style="text-align: center">
+                        <input
+                          type="checkbox"
+                          checked={tx.selected}
+                          data-id={tx.id}
+                          onchange={handleTransactionRowSelect}
+                        />
+                      </td> -->
+                      <!-- <td style="font-family: monospace; font-size: 12px">
+                        {tx.id}
+                      </td> -->
+                      <!-- <td>{tx.customer}</td> -->
+                      <td>{tx.description}</td>
+                      <td style="text-align: right; font-weight: 600">
+                        {tx.amountFormatted}
+                      </td>
+                      <td>{tx.createdDisplay}</td>
+                      <td>{tx.paymentMethod}</td>
+                      <td>
+                        <span class={tx.statusBadgeClass}>{tx.status}</span>
+                      </td>
+                      <td>{tx.refundedDate}</td>
+                      <td>{tx.declineReason}</td>
+                      <td style="text-align: center">
+                        <template if:true={tx.receiptUrl}>
+                          <a
+                            href={tx.receiptUrl}
+                            target="_blank"
+                            class="doc-link"
+                            >View</a
+                          >
+                        </template>
+                        <template if:false={tx.receiptUrl}>
+                          <span style="color: #94a3b8">-</span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+
+              <section class="pagination-bar" style="margin-top: 16px">
+                <div class="pagination-left">
+                  <button
+                    class="page-btn"
+                    onclick={handleTransactionPrevPage}
+                    disabled={transactionIsFirstPage}
+                  >
+                    &lt;
+                  </button>
+                  <template for:each={transactionPagesList} for:item="page">
+                    <button
+                      key={page.number}
+                      class={page.class}
+                      data-page={page.number}
+                      onclick={handleTransactionPageClick}
+                    >
+                      {page.number}
+                    </button>
+                  </template>
+                  <button
+                    class="page-btn"
+                    onclick={handleTransactionNextPage}
+                    disabled={transactionIsLastPage}
+                  >
+                    &gt;
+                  </button>
+                </div>
+                <div class="pagination-right">
+                  <span style="font-size: 13px; color: #64748b">Show</span>
+                  <select
+                    class="filter-select"
+                    style="min-width: 80px; padding: 6px 8px"
+                    onchange={handleTransactionPageSizeChange}
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                  </select>
+                </div>
+              </section>
+            </template>
+            <template if:false={hasStripeTransactions}>
+              <div style="padding: 12px; color: #64748b">
+                No Stripe transactions found. Click Refresh to load recent
+                transactions.
+              </div>
+            </template>
+          </section>
+        </template>
+
+        <!-- Payment Methods View -->
+        <template if:true={isStepCustomers}>
+          <div class="content-header">
+            <div>
+              <h1 class="page-title">Payment Methods</h1>
+              <template if:true={selectedAccountLabel}>
+                <p class="page-subtitle" style="margin-top: 4px; font-size: 13px; color: #64748b;">
+                  Showing saved payment methods for <strong style="color: #0f172a">{selectedAccountLabel}</strong>
+                </p>
+              </template>
+            </div>
+            <div class="header-actions">
+              <button
+                class="export-btn"
+                onclick={handleRefreshPaymentMethods}
+                disabled={isLoadingPaymentMethods}
+                style="display: inline-flex; align-items: center; justify-content: center; min-width: 90px;"
+              >
+                <template if:true={isLoadingPaymentMethods}>
+                  <lightning-spinner
+                    alternative-text="Refreshing..."
+                    size="small"
+                    variant="inverse"
+                    style="
+                      position: relative;
+                      display: inline-block;
+                      width: 14px;
+                      height: 14px;
+                      margin-right: 6px;
+                    "
+                  ></lightning-spinner>
+                  Refreshing...
+                </template>
+                <template if:false={isLoadingPaymentMethods}>
+                  Refresh
+                </template>
+              </button>
+            </div>
+          </div>
+
+          <template if:true={customerError}>
+            <div class="customer-alert customer-alert-error">
+              {customerError}
+            </div>
+          </template>
+
+          <template if:true={customerSuccess}>
+            <div class="customer-alert customer-alert-success">
+              {customerSuccess}
+            </div>
+          </template>
+
+          <!-- <template if:true={showPaymentMethodModal}>
+            <section class="customer-panel" style="margin-bottom: 18px">
+              <div class="content-header" style="padding: 0 0 12px; margin: 0">
+                <div>
+                  <h2 class="page-title" style="font-size: 1.2rem; margin: 0">
+                    Add Payment Method via Stripe Token
+                  </h2>
+                </div>
+                <div class="header-actions">
+                  <button
+                    class="new-btn-main"
+                    onclick={closeNewPaymentMethodModal}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div> -->
+
+              <!-- PCI-compliant: raw card data is NEVER collected here. 
+                                 Card details are tokenized by Stripe.js (stripe.createToken) 
+                                 in the LWR bridge. In test mode use: tok_visa, tok_mastercard, etc. -->
+              <!-- <div
+                style="
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                  gap: 16px;
+                "
+              >
+                <div>
+                  <label
+                    style="display: block; margin-bottom: 6px; font-weight: 600"
+                    >Customer</label
+                  >
+                  <select
+                    class="filter-select"
+                    data-field="customerId"
+                    onchange={handlePaymentMethodFieldChange}
+                    style="width: 100%"
+                  >
+                    <option value="">Select a customer</option>
+                    <template for:each={customers} for:item="customer">
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.email})
+                      </option>
+                    </template>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    style="display: block; margin-bottom: 6px; font-weight: 600"
+                    >Cardholder Name</label
+                  >
+                  <input
+                    class="filter-select"
+                    type="text"
+                    data-field="name"
+                    value={paymentMethodForm.name}
+                    oninput={handlePaymentMethodFieldChange}
+                    style="width: 100%"
+                    placeholder="e.g. John Doe"
+                  />
+                </div>
+                <div style="grid-column: 1 / -1">
+                  <label
+                    style="display: block; margin-bottom: 6px; font-weight: 600"
+                    >Stripe Card Token</label
+                  >
+                  <input
+                    class="filter-select"
+                    type="text"
+                    data-field="stripeToken"
+                    value={paymentMethodForm.stripeToken}
+                    oninput={handlePaymentMethodFieldChange}
+                    style="width: 100%"
+                    placeholder="tok_visa (test) or Stripe.js generated token"
+                  />
+                  <div
+                    style="
+                      font-size: 11px;
+                      color: #64748b;
+                      margin-top: 6px;
+                      line-height: 1.5;
+                    "
+                  >
+                    &#x1F512; Card details are tokenized by Stripe.js and never
+                    sent to Salesforce. In <strong>test mode</strong>, use
+                    tokens like <code>tok_visa</code>,
+                    <code>tok_mastercard</code>, <code>tok_amex</code>.
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style="
+                  margin-top: 16px;
+                  display: flex;
+                  justify-content: flex-end;
+                "
+              >
+                <button
+                  class="pay-btn-main"
+                  onclick={createPaymentMethod}
+                  disabled={isCreatingPaymentMethod}
+                >
+                  {createPaymentMethodLabel}
+                </button>
+              </div>
+            </section>
+          </template> -->
+
+          <section class="customer-panel customer-table-panel">
+            <table class="invoice-table customer-table">
+              <thead>
+                <tr>
+                  <!-- <th>Customer</th> -->
+                  <!-- <th>Email</th> -->
+                  <th>Type</th>
+                  <th>Brand</th>
+                  <th>Card Number</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template if:true={isLoadingPaymentMethods}>
+                  <tr>
+                    <td
+                      colspan="7"
+                      style="text-align: center; padding: 36px; color: #64748b"
+                    >
+                      <lightning-spinner
+                        alternative-text="Loading payment methods..."
+                        size="small"
+                        style="position: relative; display: inline-block; width: 18px; height: 18px; margin-right: 8px;"
+                      ></lightning-spinner>
+                      <span>Loading saved payment methods...</span>
+                    </td>
+                  </tr>
+                </template>
+                <template if:false={isLoadingPaymentMethods}>
+                  <template if:true={hasPaymentMethods}>
+                    <template for:each={paymentMethods} for:item="method">
+                      <tr key={method.id}>
+                        <!-- <td>
+                          <span style="font-weight: 600; color: #0f172a"
+                            >{method.customerDisplayName}</span
+                          >
+                        </td> -->
+                        <!-- <td>{method.customerEmail}</td> -->
+                        <td>{method.typeLabel}</td>
+                        <td>{method.brand}</td>
+                        <td>•••• {method.last4}</td>
+                        <td>{method.expMonth}/{method.expYear}</td>
+                        <td>
+                          <span class="method-status">{method.status}</span>
+                        </td>
+                        <td>{method.created}</td>
+                      </tr>
+                    </template>
+                  </template>
+                  <template if:false={hasPaymentMethods}>
+                    <tr>
+                      <td
+                        colspan="7"
+                        style="text-align: center; padding: 28px; color: #64748b"
+                      >
+                        No payment methods found.
+                      </td>
+                    </tr>
+                  </template>
+                </template>
+              </tbody>
+            </table>
+          </section>
+        </template>
+
+        <!-- ========================================= -->
+        <!-- STEP 2: SESSION PAYMENT VIEW              -->
+        <!-- ========================================= -->
+        <template if:true={isStepPayment}>
+          <div class="content-header">
+            <div>
+              <h1 class="page-title">Invoice Payment</h1>
+              <p class="page-subtitle">
+                Review selected invoices and pay with a saved or new Stripe
+                payment method
+              </p>
+            </div>
+          </div>
+
+          <div class="session-payment-grid">
+            <!-- Left Panel: Selected Invoices List -->
+            <div class="session-invoices-card">
+              <h2 class="session-section-title">Invoices</h2>
+
+              <table class="session-table">
+                <thead>
+                  <tr>
+                    <th>Document #</th>
+                    <th>Date</th>
+                    <th>Account</th>
+                    <th>Open</th>
+                    <th>Pay</th>
+                    <th style="width: 50px; text-align: center"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={selectedInvoices} for:item="inv">
+                    <tr key={inv.key}>
+                      <td style="font-weight: 700">
+                        {inv.billingDocumentNumber}
+                      </td>
+                      <td>{inv.documentDate}</td>
+                      <td>{inv.accountNumber}</td>
+                      <td style="font-weight: 600">
+                        {inv.currencySymbol}{inv.formattedOpen}
+                      </td>
+                      <td>
+                        <template if:true={inv.isPositiveOpen}>
+                          <div class="pay-input-container">
+                            <span class="pay-currency-symbol">{inv.currencySymbol}</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              class="pay-amount-input"
+                              value={inv.payAmount}
+                              data-id={inv.key}
+                              oninput={handlePayAmountChange}
+                            />
+                          </div>
+                        </template>
+                        <template if:false={inv.isPositiveOpen}>
+                          <span style="font-weight: 600; color: #16a34a">-{inv.currencySymbol}{inv.formattedOpenAbs}</span>
+                        </template>
+                      </td>
+                      <td style="text-align: center">
+                        <button
+                          class="row-delete-btn"
+                          data-id={inv.key}
+                          onclick={handleRemoveInvoice}
+                          title="Remove Invoice"
+                        >
+                          &minus;
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Right Panel: Summary Box -->
+            <div>
+              <div class="payment-panel-card">
+                <h2
+                  class="session-section-title"
+                  style="font-size: 16px; margin-bottom: 20px"
+                >
+                  Payment Summary
+                </h2>
+
+                <div class="summary-line-item">
+                  <span>Pay Amount</span>
+                  <span style="font-weight: 600">{currencySymbol}{formattedSummaryPayAmount}</span>
+                </div>
+                <div class="summary-line-item">
+                  <span>Credits</span>
+                  <span class="summary-value-credits">-{currencySymbol}{formattedSummaryCredits}</span>
+                </div>
+                <div class="summary-line-item bold-total">
+                  <span>Total</span>
+                  <span>{currencySymbol}{formattedSummaryTotal}</span>
+                </div>
+
+                <!-- Stripe Customer Information Banner -->
+                <template if:true={isLoadingCustomer}>
+                  <div class="customer-loading-banner" style="margin-top: 18px">
+                    <lightning-spinner
+                      alternative-text="Looking up Stripe customer..."
+                      size="small"
+                    ></lightning-spinner>
+                    <span style="font-size: 13px; color: #64748b; margin-left: 10px">Verifying Stripe customer account...</span>
+                  </div>
+                </template>
+
+                <template if:true={activeStripeCustomer}>
+                  <div class="customer-info-banner" style="margin-top: 18px">
+                    <!-- <div class="customer-banner-header">
+                      <span class="customer-banner-icon">&#127970;</span>
+                      <span class="customer-banner-title">Billing Account</span>
+                      <template if:true={activeStripeCustomer.isNewCustomer}>
+                        <span class="customer-badge customer-badge-new">&#10024; New Customer Created</span>
+                      </template>
+                      <template if:false={activeStripeCustomer.isNewCustomer}>
+                        <span class="customer-badge customer-badge-existing">&#10003; Existing Customer</span>
+                      </template>
+                    </div> -->
+                    <div class="customer-banner-body">
+                      <div class="customer-detail-row">
+                        <span class="customer-detail-label">Account Name</span>
+                        <span class="customer-detail-value">{activeStripeCustomer.accountName}</span>
+                      </div>
+                      <div class="customer-detail-row">
+                        <span class="customer-detail-label">Account #</span>
+                        <span class="customer-detail-value">{activeStripeCustomer.accountNumber}</span>
+                      </div>
+                      <template if:true={activeStripeCustomer.salesOrganization}>
+                        <div class="customer-detail-row">
+                          <span class="customer-detail-label">Sales Organization</span>
+                          <span class="customer-detail-value">{activeStripeCustomer.salesOrganization}</span>
+                        </div>
+                      </template>
+                      <!-- <div class="customer-detail-row">
+                        <span class="customer-detail-label">Stripe Customer</span>
+                        <span class="customer-detail-value customer-id-pill">{activeStripeCustomer.id}</span>
+                      </div> -->
+                      <template if:true={activeStripeCustomer.email}>
+                        <div class="customer-detail-row">
+                          <span class="customer-detail-label">Email</span>
+                          <span class="customer-detail-value">{activeStripeCustomer.email}</span>
+                        </div>
+                      </template>
+                      <template if:true={activeStripeCustomer.phone}>
+                        <div class="customer-detail-row">
+                          <span class="customer-detail-label">Phone</span>
+                          <span class="customer-detail-value">{activeStripeCustomer.phone}</span>
+                        </div>
+                      </template>
+                      <template if:true={activeCustomerFormattedAddress}>
+                        <div class="customer-detail-row">
+                          <span class="customer-detail-label">Billing Address</span>
+                          <span class="customer-detail-value">{activeCustomerFormattedAddress}</span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Payment Method Type Switcher (Segmented Cards) -->
+                <div class="payment-form-group" style="margin-top: 18px">
+                  <label class="payment-form-label"
+                    >Payment Method Option</label
+                  >
+                  <div class="payment-segment-group">
+                    <button
+                      type="button"
+                      class={savedModeClass}
+                      onclick={selectSavedPaymentMode}
+                    >
+                      <span class="segment-icon">&#128179;</span>
+                      <span class="segment-text">Saved Card</span>
+                    </button>
+                    <button
+                      type="button"
+                      class={newModeClass}
+                      onclick={selectNewPaymentMode}
+                    >
+                      <span class="segment-icon">&#10024;</span>
+                      <span class="segment-text"
+                        >New Card (Payment Element)</span
+                      >
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Existing Card Selection -->
+                <template if:true={isExistingPaymentMode}>
+                  <div class="payment-form-group" style="margin-top: 14px">
+                    <label class="payment-form-label">Choose Saved Card</label>
+                    <template if:true={hasCustomerPaymentMethods}>
+                      <select
+                        class="payment-form-select"
+                        onchange={handlePaymentMethodChange}
+                      >
+                        <template for:each={paymentMethodOptions} for:item="pm">
+                          <option
+                            key={pm.value}
+                            value={pm.value}
+                            selected={pm.selected}
+                          >
+                            {pm.label}
+                          </option>
+                        </template>
+                      </select>
+                    </template>
+                    <template if:false={hasCustomerPaymentMethods}>
+                      <div class="no-pm-notice">
+                        <span>No saved cards found for this customer.</span>
+                        <button
+                          type="button"
+                          class="switch-to-new-link"
+                          onclick={selectNewPaymentMode}
+                        >
+                          Pay with New Card &rarr;
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- New Card / Stripe Payment Element -->
+                <template if:true={isNewPaymentMode}>
+                  <div class="payment-form-group" style="margin-top: 14px">
+                    <div class="new-pm-header">
+                      <label class="payment-form-label" style="margin: 0">Secure Card Payment</label>
+                      <span class="pci-badge">&#128274; 256-Bit SSL Encrypted</span>
+                    </div>
+                    <div class="stripe-element-container">
+                      <template if:true={stripeElementLoading}>
+                        <div class="stripe-loading-box">
+                          <lightning-spinner
+                            alternative-text="Loading secure payment form..."
+                            size="small"
+                          ></lightning-spinner>
+                          <span
+                            style="
+                              font-size: 12px;
+                              color: #64748b;
+                              margin-top: 8px;
+                            "
+                            >Loading Stripe Payment Element...</span>
+                        </div>
+                      </template>
+                      <!-- Stripe mounts its PCI-compliant iframe/UI inside this container. -->
+                      <div
+                        class="stripe-payment-element"
+                        data-stripe-bridge={stripeBridgeId}
+                        lwc:dom="manual"
+                      ></div>
+                    </div>
+                    <div class="pci-notice-text">
+                      Card information is encrypted and submitted directly to
+                      Stripe. Sensitive details never touch Salesforce.
+                    </div>
+                  </div>
+                </template>
+
+                <template if:true={paymentError}>
+                  <div
+                    class="customer-alert customer-alert-error"
+                    style="margin-top: 14px"
+                  >
+                    {paymentError}
+                  </div>
+                </template>
+
+                <button
+                  class="continue-btn-red"
+                  disabled={paymentButtonDisabled}
+                  onclick={handleFinalPay}
+                >
+                  <template if:true={isProcessing}>
+                    <lightning-spinner
+                      alternative-text="Processing..."
+                      size="small"
+                      variant="inverse"
+                      style="
+                        position: relative;
+                        display: inline-block;
+                        width: 16px;
+                        height: 16px;
+                        margin-right: 8px;
+                      "
+                    ></lightning-spinner>
+                    Processing Payment...
+                  </template>
+                  <template if:false={isProcessing}>
+                    Pay {currencySymbol}{formattedSummaryTotal}
+                  </template>
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </main>
+  </div>
+
+  <!-- Payment Status Modal -->
+  <template if:true={paymentStatus}>
+    <div class="custom-modal-backdrop">
+      <template if:true={isPaymentSuccess}>
+        <div class="custom-modal success">
+          <div class="modal-content">
+            <div class="modal-icon-container">
+              <lightning-icon
+                icon-name="utility:success"
+                size="medium"
+                variant="success"
+              ></lightning-icon>
+            </div>
+            <h2 class="modal-title">Payment Successful!</h2>
+            <p class="modal-description">
+              Thank you for your payment. Your invoices have been paid
+              successfully.
+            </p>
+            <button class="modal-btn" onclick={handleDismissPaymentStatus}>
+              Done
+            </button>
+          </div>
+        </div>
+      </template>
+      <template if:true={isPaymentCancel}>
+        <div class="custom-modal cancel">
+          <div class="modal-content">
+            <div class="modal-icon-container">
+              <lightning-icon
+                icon-name="utility:error"
+                size="medium"
+                variant="error"
+              ></lightning-icon>
+            </div>
+            <h2 class="modal-title">Payment Cancelled</h2>
+            <p class="modal-description">
+              The payment process was cancelled or declined. No charges were
+              made.
+            </p>
+            <button class="modal-btn" onclick={handleDismissPaymentStatus}>
+              Go Back
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- New Invoice Modal — kept outside paymentStatus so it renders independently -->
+  <!-- <template if:true={showNewInvoiceModal}>
+    <section
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      class="slds-modal slds-fade-in-open"
+    >
+      <div class="slds-modal__container">
+        <header class="slds-modal__header">
+          <button
+            class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+            title="Close"
+            onclick={handleCloseModal}
+          >
+            <lightning-icon
+              icon-name="utility:close"
+              size="small"
+              variant="inverse"
+            ></lightning-icon>
+            <span class="slds-assistive-text">Close</span>
+          </button>
+          <h2 class="slds-text-heading_medium">Create New Invoice</h2>
+        </header>
+        <div class="slds-modal__content slds-var-p-around_medium">
+          <div class="slds-grid slds-wrap slds-gutters">
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-input
+                label="Billing Document Number"
+                name="billingDocumentNumber"
+                value={newInvoice.billingDocumentNumber}
+                onchange={handleInputChange}
+                required
+              ></lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-input
+                label="Reference Number"
+                name="referenceNumber"
+                value={newInvoice.referenceNumber}
+                onchange={handleInputChange}
+                required
+              ></lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-combobox
+                label="Account Number"
+                name="accountNumber"
+                value={newInvoice.accountNumber}
+                options={accountOptions}
+                onchange={handleInputChange}
+                required
+              ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-combobox
+                label="Currency"
+                name="currencyKey"
+                value={newInvoice.currencyKey}
+                options={currencyOptions}
+                onchange={handleInputChange}
+                required
+              ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-input
+                type="number"
+                step="0.01"
+                label="Total Amount"
+                name="totalAmount"
+                value={newInvoice.totalAmount}
+                onchange={handleInputChange}
+                required
+              ></lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-combobox
+                label="Status"
+                name="status"
+                value={newInvoice.status}
+                options={statusOptions}
+                onchange={handleInputChange}
+                required
+              ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-input
+                type="date"
+                label="Document Date"
+                name="documentDate"
+                value={newInvoice.documentDate}
+                onchange={handleInputChange}
+                required
+              ></lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-2 slds-var-m-bottom_medium">
+              <lightning-input
+                type="date"
+                label="Due Date"
+                name="dueDate"
+                value={newInvoice.dueDate}
+                onchange={handleInputChange}
+                required
+              ></lightning-input>
+            </div>
+          </div>
+        </div>
+        <footer class="slds-modal__footer">
+          <button
+            class="slds-button slds-button_neutral"
+            onclick={handleCloseModal}
+          >
+            Cancel
+          </button>
+          <button
+            class="slds-button slds-button_brand"
+            onclick={handleSaveInvoice}
+          >
+            Save Invoice
+          </button>
+        </footer>
+      </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open"></div>
+  </template> -->
+</template>
