@@ -283,9 +283,9 @@ sf apex run test -c -r human -n "InvoicePaymentControllerTest,InvoiceListControl
 ## 📁 Project Structure & Key Files
 
 ```
-├──config/
+├── config/
 │   └── project-scratch-def.json           # Scratch org definition
-│ force-app/main/default/
+├── force-app/main/default/
 │   ├── applications/
 │   │   └── Invoice_Payments_app.app-meta.xml # Lightning app bundling invoice and payment tabs
 │   ├── classes/
